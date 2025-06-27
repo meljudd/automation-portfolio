@@ -1,0 +1,528 @@
+{
+  "name": "Podcast Content Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Podcast Content",
+        "formDescription": "Add a new podcast",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Title",
+              "placeholder": "Podcast title",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "URL",
+              "placeholder": "Podcast URL",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        -140
+      ],
+      "id": "bd7c8586-8236-41ef-be13-659955c37a78",
+      "name": "On form submission",
+      "webhookId": "603ea311-e2ab-4b54-b161-fa05934b7db4"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a helpful, intelligent webscraping assistant.",
+              "role": "system"
+            },
+            {
+              "content": "=Your task is to take the raw markdown of a website describing the {{ $('On form submission').item.json.Title }} podcast  and convert it into structured data.\n\nTake the following website text {{ $json.websiteMarkdown }} and return a simple JSON object for the {{ $('On form submission').item.json.Title }} podcast. It is extremely important that you do NOT put any comments in the JSON object. Even if you think it is important, please do not put any comments.  The JSON object should be structured as following:\n\n{\"key\": \"value\"}\n\ntitle, originalDescription, keywords, description, metaDescription, tagline, contentAdvisory, appleRating, hosts, launchYear, channel, channelUrl, status, categories, totalEpisodes, averageEpisodeLength, frequency, geographicalFocus, showUrl\n\nBear in mind the following:\n\n- Target Audience: True crime podcast listeners, mystery enthusiasts, investigative journalism followers\n- Primary Keyword Focus: [Podcast Name] + podcast\n- Secondary Keywords: [specific case types/themes] podcast, [location-based] true crime stories, true crime podcast\n- Maintain 2-3% keyword density- Use natural language processing (NLP) oriented phrases\n- Assume you are a highly skilled content writer employed to create great content for the podcast detail pages of a high ranking podcast directory website. \n\nHere are the requirements for each specific fields:\n\n## Original description\nProvide the podcast description from the website provided and strip out any unnecessary text and URLs. \n\n## Keywords\nPlease suggest the best longtail keywords associated with that specific podcast. Include the primary keyword followed by the secondary keywords and any other important keywords. Please provide them as a comma separated string.\n\n## Description\nWrite 2-3 paragraphs (300-400 words) incorporating:\n- Primary keyword naturally in first paragraph\n- IMPORTANT: avoid the following format: \"[Podcast Name] is a gripping true crime podcast\", try to be more creative than that.\n- LSI keywords (investigation, criminal cases, unsolved mysteries, etc.)\n- Location-specific terms if relevant\n- Mention notable features (award-winning, expert interviews, etc.)\n- Include social proof (download numbers, rankings, media mentions)\n- Please avoid bullet points.\n- Do NOT provide any quotes.\n- Do NOT use any speech marks or double quotes or single quotes.\n\n## Meta description\nCreate a compelling 150-160 character SEO optimised meta description incorporating:\n- Primary keyword\n- Unique selling proposition\n\n## Tagline\nCreate a short (15-20 words) gripping tagline for the podcast\n\n## Content Advisory\n- Professional content warning incorporating relevant search terms\n- Focus on informative rather than sensational language\n- Include accessibility information\n\n## Apple rating\nShould be a number between 0 and 5, it should not be something like \"Explicit\". An example of the rating is: `*  4.6 (411)` - in that case the rating would be 4.6. It will be the first instance of that type of string on the page.\n\n## Hosts\nProvide the list of hosts as a string, separated by a comma.\n\n## Launch year\nShould be a string. You should find it referenced near the top of the page.\n\n## Channel\nThe name of the publisher. Should be the name of the channel that produces the podcast, should be a string  - not all podcasts have one, so leave an empty string if it is not found.\n\n## Channel URL\nShould be the link to the above mentioned channel - not all podcasts have one, so leave an empty string if it is not found.\n\n## Status\nShould be either the string \"active\" or \"idle\" depending on whether the podcast is currently active.\n\n## Categories\nSuggest any appropriate sub-categories that would accurately be applied to the specific podcast. Do not suggest the category \"true crime\".  Suggested categories should limited to three of the following: \"comedy\",\"investigative-journalism\", \"medical\", \"cults\", \"fraud\", \"social-justice\", \"paranormal\", \"mystery\", \"cold-case\", \"historical\", \"organized-crime\", \"human-interest\", \"character-study\", \"psychological-manipulation\", \"white-collar-crime\", \"missing-persons\", \"regional\", \"cybercrime\", \"violence\", \"narrative\", \"discussion\". Please provide the list as a comma-separated string. If none apply, provide an empty string.\n\n## Total episodes\nThis should be the total number of episodes of that podcast that exist - should be a number.\n\n## Average episode length\nThis should be the average length of the episodes of that podcast. It should be limited to one of the following: \"less than 30 minutes\", \"30-60 minutes\", \"more than 60 minutes\".\n\n## Frequency\nShould be how often new episodes of the specific podcasts are released. It should be limited to one of the following: \"daily\", \"semi-weekly\", \"weekly\", \"semi-monthly\", \"monthly\", \"seasonal\", \"ad-hoc\".\n\n## Geographical focus\nShould be where the crimes that the podcast discusses are based. Should be comma-separated string of locations, current locations are: \"Global\", \"United States\", \"United Kingdom\", \"Canada\", \"Australia\", \"Ireland\", \"Malta\", \"Japan\" but please add another if appropriate. Only provide country names.\n\n## Show URL\nIf the podcast has a specific URL for the show, please provide it. It should not be an Apple podcasts URL. If it is not present, please provide an empty string.\n\nNote: The JSON response should contain only the pure JSON object without any additional formatting or explanation. All text fields should be non-null strings, arrays should not be empty, and URLs should be valid. ONLY return the JSON object, do not write anything before or after the JSON, do not specify the language JSON at the start of the code block you return. Do not put any comments in the JSON response.\n\n\n"
+            },
+            {}
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        880,
+        -140
+      ],
+      "id": "e1984431-49a5-4436-936a-c4805e9940cb",
+      "name": "OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "a55oqKmCuKwT78I7",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "=GOOGLE SHEET NAME",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "=GOOGLE SHEET ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "={{ $('On form submission').item.json.Title }}",
+            "ID": "=",
+            "Description": "={{ $('OpenAI').item.json.message.content.description }}",
+            "Meta Description": "={{ $('OpenAI').item.json.message.content.metaDescription }}",
+            "Tagline": "={{ $('OpenAI').item.json.message.content.tagline }}",
+            "Hosts": "={{ $('OpenAI').item.json.message.content.hosts }}",
+            "Channel": "={{ $('OpenAI').item.json.message.content.channel }}",
+            "Channel URL": "={{ $('OpenAI').item.json.message.content.channelUrl }}",
+            "Categories": "={{ $('OpenAI').item.json.message.content.categories }}",
+            "Launch Year": "={{ $('OpenAI').item.json.message.content.launchYear }}",
+            "Status": "={{ $('OpenAI').item.json.message.content.status }}",
+            "Total Episodes": "={{ $('OpenAI').item.json.message.content.totalEpisodes }}",
+            "Average Episode Length": "={{ $('OpenAI').item.json.message.content.averageEpisodeLength }}",
+            "Frequency": "={{ $('OpenAI').item.json.message.content.frequency }}",
+            "Apple Podcast URL": "={{ $('On form submission').item.json.URL }}",
+            "Image URL": "={{ $('Image URL').item.json.imageUrl }}",
+            "Show URL": "={{ $('On form submission').item.json.URL }}",
+            "Geographical Focus": "={{ $('OpenAI').item.json.message.content.geographicalFocus }}",
+            "Apple Rating": "={{ $('OpenAI').item.json.message.content.appleRating }}",
+            "Original Description": "={{ $('OpenAI').item.json.message.content.originalDescription }}",
+            "Keywords": "={{ $('OpenAI').item.json.message.content.keywords }}",
+            "Updated": "={{ $now }}",
+            "imgbbUrl": "={{ $json.data.url }}"
+          },
+          "matchingColumns": [
+            "Title"
+          ],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Description",
+              "displayName": "Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Meta Description",
+              "displayName": "Meta Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tagline",
+              "displayName": "Tagline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Hosts",
+              "displayName": "Hosts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Channel",
+              "displayName": "Channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Channel URL",
+              "displayName": "Channel URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Categories",
+              "displayName": "Categories",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Launch Year",
+              "displayName": "Launch Year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total Episodes",
+              "displayName": "Total Episodes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Average Episode Length",
+              "displayName": "Average Episode Length",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Frequency",
+              "displayName": "Frequency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Apple Podcast URL",
+              "displayName": "Apple Podcast URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Spotify URL",
+              "displayName": "Spotify URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Image URL",
+              "displayName": "Image URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Show URL",
+              "displayName": "Show URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Geographical Focus",
+              "displayName": "Geographical Focus",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Apple Rating",
+              "displayName": "Apple Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Original Description",
+              "displayName": "Original Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Keywords",
+              "displayName": "Keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated",
+              "displayName": "Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "imgbbUrl",
+              "displayName": "imgbbUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1696,
+        -140
+      ],
+      "id": "1a77eedb-d64a-486b-af01-f4f187b5bbf8",
+      "name": "Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LNgioDKOFitaDjvP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.URL }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        -140
+      ],
+      "id": "725d6ea3-1b36-47da-81f7-a4294aa9b2b6",
+      "name": "Get Apple Podcasts Website"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json.data;\n\nconst regex = /https:\\/\\/is1-ssl\\.mzstatic.*?\\.jpg/g;\n\nconst matches = input.match(regex);\n\nreturn {\n  json: {\n    imageUrl: matches ? matches[0] : null\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -140
+      ],
+      "id": "6626ddc3-647e-47de-a21b-cc8c45f55b9e",
+      "name": "Image URL"
+    },
+    {
+      "parameters": {
+        "html": "={{ $('Get Apple Podcasts Website').item.json.data }}",
+        "destinationKey": "websiteMarkdown",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        660,
+        -140
+      ],
+      "id": "e1ef0d11-af41-4905-98a1-37385f51a84a",
+      "name": "Apple Podcasts Markdown"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.imgbb.com/1/upload",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "=IMGBB API KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image",
+              "value": "={{ $('Image URL').item.json.imageUrl }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $('On form submission').item.json.Title.normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\").toLowerCase().replace(/[^\\w\\s-]/g, \"\").replace(/\\s+/g, \"-\").replace(/-+/g, \"-\").replace(/^-+|-+$/g, \"\") }}"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1480,
+        -140
+      ],
+      "id": "3dccbf4e-1a71-4b9c-af80-5cf07538af6d",
+      "name": "Upload ImgBB Image"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Get Apple Podcasts Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Upload ImgBB Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Apple Podcasts Website": {
+      "main": [
+        [
+          {
+            "node": "Image URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image URL": {
+      "main": [
+        [
+          {
+            "node": "Apple Podcasts Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apple Podcasts Markdown": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload ImgBB Image": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "246cc6d0-48ab-46dd-91ac-af4948ec19cb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5f56bba93caf5c72ce2e82ae08325840d9f874fcb312acae9139f73a7d1a412c"
+  },
+  "id": "erYmafuYFMzoCKW5",
+  "tags": []
+}

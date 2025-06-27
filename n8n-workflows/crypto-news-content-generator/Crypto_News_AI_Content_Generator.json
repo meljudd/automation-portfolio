@@ -1,0 +1,419 @@
+{
+  "name": "Crypto News AI Content Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e1aa25a6-034c-4e04-8004-ec1cadd95f60",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://newsapi.org/v2/everything",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "crypto OR bitcoin OR ethereum OR blockchain OR defi"
+            },
+            {
+              "name": "sortBy",
+              "value": "publishedAt"
+            },
+            {
+              "name": "pageSize",
+              "value": "10"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer NEWS API KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "3707db79-0979-426f-8cb8-7c6e894bf472",
+      "name": "Fetch Crypto News"
+    },
+    {
+      "parameters": {
+        "jsCode": "const articles = $input.first().json.articles;\n\nconst processedArticles = articles\n  .filter(article => \n    article.title && \n    article.description && \n    article.title.toLowerCase() !== '[removed]' &&\n    article.description.toLowerCase() !== '[removed]'\n  )\n  .slice(0, 5)\n  .map((article, index) => {\n    const urlHash = article.url ? article.url.split('/').pop().replace(/[^a-zA-Z0-9]/g, '').substring(0, 8) : '';\n    const titleHash = article.title.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);\n    const timestamp = new Date().getTime().toString().slice(-6);\n    \n    const uniqueId = `${titleHash}_${timestamp}_${index + 1}`;\n    \n    return {\n      id: uniqueId,\n      title: article.title,\n      description: article.description,\n      url: article.url,\n      source: article.source.name,\n      publishedAt: article.publishedAt,\n      content: article.content || article.description\n    };\n  });\n\nreturn processedArticles.map(article => ({ json: article }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "id": "bd039ba6-28f0-4b47-b55f-be0c69851e37",
+      "name": "Process Articles"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a content specialist for a Web3 venture studio. Create multiple content formats from crypto news articles. Always respond with valid JSON only.",
+              "role": "system"
+            },
+            {
+              "content": "=Create 4 different content formats for this crypto article:\n\nId: {{ $json.id }}\nTitle: {{ $json.title }}\nDescription: {{ $json.description }}\nSource: {{ $json.source }}\n\nReturn JSON with these exact keys:\n{\n  \"executive_summary\": \"50-word professional summary\",\n  \"twitter_thread\": [\"tweet 1 text\", \"tweet 2 text\", \"tweet 3 text\"],\n  \"linkedin_post\": \"300-word professional LinkedIn post with hashtags\",\n  \"newsletter_snippet\": \"150-word engaging newsletter snippet\",\n  \"keywords\": [\"keyword1\", \"keyword2\", \"keyword3\", \"keyword4\", \"keyword5\"],\n  \"category\": \"DeFi/NFT/Gaming/Trading/Regulation\",\n  \"sentiment\": \"Positive/Negative/Neutral\",\n  \"relevance_score\": 8\n}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        660,
+        0
+      ],
+      "id": "3d4c05f9-1bb0-4e86-9191-0a931ce1acbb",
+      "name": "Generate Content Formats",
+      "retryOnFail": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "a55oqKmCuKwT78I7",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "=GOOGLE SHEET NAME",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "=GOOGLE SHEET ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Article ID": "={{ $json.id }}",
+            "Title": "={{ $json.title }}",
+            "Source": "={{ $json.source }}",
+            "Published Date": "={{ $json.publishedAt }}",
+            "Newsletter Snippet": "={{ $json.newsletter_snippet }}",
+            "LinkedIn Post": "={{ $json.linkedin_post }}",
+            "Executive Summary": "={{ $json.executive_summary }}",
+            "Keywords": "={{ $json.keywords }}",
+            "Category": "={{ $json.category }}",
+            "Sentiment": "={{ $json.sentiment }}",
+            "Relevance Score": "={{ $json.relevance_score }}",
+            "Original URL": "={{ $json.url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Article ID",
+              "displayName": "Article ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Published Date",
+              "displayName": "Published Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Executive Summary",
+              "displayName": "Executive Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn Post",
+              "displayName": "LinkedIn Post",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Newsletter Snippet",
+              "displayName": "Newsletter Snippet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Keywords",
+              "displayName": "Keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sentiment",
+              "displayName": "Sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Relevance Score",
+              "displayName": "Relevance Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Original URL",
+              "displayName": "Original URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1460,
+        -100
+      ],
+      "id": "7852886c-079a-4bc9-9241-387fb0bda832",
+      "name": "Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LNgioDKOFitaDjvP",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "EMAIL ADDRESS",
+        "subject": "=Crypto Content Digest - {{ $now.toFormat('yyyy-MM-dd') }}",
+        "message": "=<html><body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333;\">\n\n<div style=\"background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;\">\n<h2>🚀 Daily Crypto Content Processing Complete!</h2>\n</div>\n\n<div style=\"background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 15px 0;\">\n<strong>Processed {{ $input.first().json.data.length }} articles today.</strong><br><br>\n<strong>Categories covered:</strong> {{ Object.entries($input.first().json.data.reduce((acc, item) => { acc[item.Category] = (acc[item.Category] || 0) + 1; return acc; }, {})).map(([cat, count]) => `${cat} (${count})`).join(', ') }}\n</div>\n\n<div style=\"margin: 20px 0;\">\n<h3>📰 Articles Processed:</h3>\n{{ $input.first().json.data.map(item => `<div style=\"margin: 8px 0; padding: 5px 0;\">• <a href=\"${item.URL}\" target=\"_blank\" style=\"color: #1976d2; text-decoration: none;\">${item.Title}</a> <em>(${item.Category})</em></div>`).join('') }}\n</div>\n\n<div style=\"background-color: #f1f8e9; padding: 15px; border-radius: 5px; margin: 15px 0;\">\n<h3>✅ Ready-to-publish content formats created:</h3>\n<ul>\n<li><strong>Executive summaries</strong> - Perfect for briefings</li>\n<li><strong>LinkedIn posts</strong> - Professional content ready to post</li>\n<li><strong>Newsletter snippets</strong> - Engaging email content</li>\n<li><strong>Twitter threads</strong> - Social media ready</li>\n<li><strong>SEO keywords</strong> - Optimized for search</li>\n</ul>\n</div>\n\n<div style=\"text-align: center; margin: 25px 0;\">\n<a href=\"GOOGLE SHEETS URL\" style=\"background-color: #4caf50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;\" target=\"_blank\">📊 View Complete Content Database</a>\n</div>\n\n<p style=\"color: #666; font-size: 12px; margin-top: 30px;\">This automated report was generated by your n8n crypto content workflow.</p>\n\n</body></html>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1900,
+        -100
+      ],
+      "id": "0a0e2dd1-3593-4637-a0f2-db0e5681fbbc",
+      "name": "Gmail",
+      "webhookId": "d8214e23-4cf7-49ff-9dc4-e8c5680a22be",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "NI9kqOYIUNVNsABG",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        -100
+      ],
+      "id": "17e26342-4d16-4a91-82e1-ca0e8e200310",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "jsCode": "const originalArticles = $(\"Process Articles\").all();\n\nconst processedItems = [];\n\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  \n  const originalData = originalArticles[i].json;\n  \n  const aiContent = item.json.message.content;\n  \n  const combinedData = {\n    id: originalData.id,\n    title: originalData.title,\n    source: originalData.source,\n    publishedAt: originalData.publishedAt,\n    url: originalData.url,\n    executive_summary: aiContent.executive_summary,\n    linkedin_post: aiContent.linkedin_post,\n    newsletter_snippet: aiContent.newsletter_snippet,\n    twitter_thread: aiContent.twitter_thread.join(' | '),\n    keywords: aiContent.keywords.join(', '),\n    category: aiContent.category,\n    sentiment: aiContent.sentiment,\n    relevance_score: aiContent.relevance_score\n  };\n  \n  processedItems.push(combinedData);\n}\n\nreturn processedItems.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        0
+      ],
+      "id": "54c48aff-0ebd-4a50-a73d-b4ccb30b898b",
+      "name": "Flatten for Sheets"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Crypto News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Crypto News": {
+      "main": [
+        [
+          {
+            "node": "Process Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Articles": {
+      "main": [
+        [
+          {
+            "node": "Generate Content Formats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Content Formats": {
+      "main": [
+        [
+          {
+            "node": "Flatten for Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten for Sheets": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "708a154c-11bb-4fb5-96cd-bae0c88a178f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5f56bba93caf5c72ce2e82ae08325840d9f874fcb312acae9139f73a7d1a412c"
+  },
+  "id": "YMbeF5ZtqaGfQuUR",
+  "tags": []
+}
