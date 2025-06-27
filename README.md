@@ -62,8 +62,7 @@ _"Brilliant work, more than I expected and I will definitely work with Melanie a
 
 I'd love to hear about your automation challenges and see how I can help.
 
-**📧 Email:** melaniemjudd@gmail.com
-**🌐 Available:** Immediately for new projects
+[![Email](https://img.shields.io/badge/Email-Contact-purple)](mailto:melaniemjudd@gmail.com)
 
 ---
 
