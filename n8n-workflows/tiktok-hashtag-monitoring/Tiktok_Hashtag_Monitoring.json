@@ -1,0 +1,1026 @@
+{
+  "name": "Tiktok Hashtag Monitoring",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-160, -200],
+      "id": "920ecae3-969d-4a66-bc66-7fbf8add1022",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61a75a3e-8e4c-4087-b54e-9e7e697ea3c1",
+              "name": "hashtags",
+              "value": "[\"startup\", \"entrepreneur\", \"productivity\", \"remotework\", \"coding\", \"webdevelopment\", \"digitalmarketing\"]",
+              "type": "array"
+            },
+            {
+              "id": "6a3bf701-0186-42e0-ae4e-e65afa96a225",
+              "name": "results per page",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "id": "ac33afcf-b8c0-4f1a-9c34-b7c8bb5d2e7b",
+              "name": "country code",
+              "value": "GB",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [60, -200],
+      "id": "85875b37-5b96-49b6-a353-e0d1cf0d928a",
+      "name": "Scraper Settings"
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $(\"Scrape TikTok\").all();\n\nfunction calculateEngagementRate(post) {\n  const totalEngagement = (post.diggCount || 0) + (post.shareCount || 0) + (post.commentCount || 0);\n  const playCount = post.playCount || 1;\n  return (totalEngagement / playCount) * 100;\n}\n\nfunction calculateViralScore(post) {\n  const shareToPlay = (post.shareCount || 0) / (post.playCount || 1);\n  const engagementRate = calculateEngagementRate(post);\n  const creatorInfluence = Math.log10((post.authorMeta?.fans || 1) + 1);\n  \n  return (shareToPlay * 1000) + (engagementRate * 10) + creatorInfluence;\n}\n\nconst processedPosts = posts.map(item => {\n  const post = item.json;\n  \n  const hashtags = (post.hashtags || [])\n    .map(h => h.name)\n    .filter(tag => tag && tag.trim() !== '');\n  \n  const engagementRate = calculateEngagementRate(post);\n  const viralScore = calculateViralScore(post);\n  \n  const createDate = new Date(post.createTimeISO);\n  const postDate = createDate.toISOString().split('T')[0];\n  \n  return {\n    id: post.id,\n    text: post.text,\n    url: post.webVideoUrl,\n    createTime: post.createTimeISO,\n    postDate: postDate,\n    playCount: post.playCount || 0,\n    diggCount: post.diggCount || 0,\n    shareCount: post.shareCount || 0,\n    commentCount: post.commentCount || 0,\n    engagementRate: engagementRate,\n    viralScore: viralScore,\n    duration: post.videoMeta?.duration || 0,\n    hashtags: hashtags,\n    creatorUsername: post.authorMeta?.name || '',\n    creatorFollowers: post.authorMeta?.fans || 0,\n    creatorVerified: post.authorMeta?.verified || false,\n    inputHashtag: post.input\n  };\n});\n\nconst hashtagMetrics = {};\nprocessedPosts.forEach(post => {\n  post.hashtags.forEach(hashtag => {\n    if (!hashtagMetrics[hashtag]) {\n      hashtagMetrics[hashtag] = {\n        hashtag: hashtag,\n        postCount: 0,\n        totalViralScore: 0,\n        avgEngagementRate: 0,\n        avgViralScore: 0,\n        topPost: null\n      };\n    }\n    \n    const metric = hashtagMetrics[hashtag];\n    metric.postCount++;\n    metric.totalViralScore += post.viralScore;\n    \n    if (!metric.topPost || post.viralScore > metric.topPost.viralScore) {\n      metric.topPost = {\n        url: post.url,\n        viralScore: post.viralScore,\n        creator: post.creatorUsername  // FIXED: was playCount before\n      };\n    }\n  });\n});\n\nObject.values(hashtagMetrics).forEach(metric => {\n  metric.avgViralScore = metric.totalViralScore / metric.postCount;\n  const hashtagPosts = processedPosts.filter(post => post.hashtags.includes(metric.hashtag));\n  metric.avgEngagementRate = hashtagPosts.reduce((sum, post) => sum + post.engagementRate, 0) / hashtagPosts.length;\n});\n\nconst creatorMetrics = {};\nprocessedPosts.forEach(post => {\n  const username = post.creatorUsername;\n  if (!creatorMetrics[username]) {\n    creatorMetrics[username] = {\n      username: username,\n      followers: post.creatorFollowers,\n      verified: post.creatorVerified,\n      postsInDataset: 0,\n      avgViralScore: 0,\n      engagementRate: 0,\n      bestPost: null\n    };\n  }\n  \n  const metric = creatorMetrics[username];\n  metric.postsInDataset++;\n  metric.avgViralScore += post.viralScore;\n  \n  if (!metric.bestPost || post.viralScore > metric.bestPost.viralScore) {\n    metric.bestPost = {\n      url: post.url,\n      viralScore: post.viralScore\n    };\n  }\n});\n\nObject.values(creatorMetrics).forEach(metric => {\n  metric.avgViralScore = metric.avgViralScore / metric.postsInDataset;\n  const creatorPosts = processedPosts.filter(post => post.creatorUsername === metric.username);\n  metric.engagementRate = creatorPosts.reduce((sum, post) => sum + post.engagementRate, 0) / creatorPosts.length;\n});\n\nconst dailySummary = {\n  date: new Date().toISOString().split('T')[0],\n  totalPosts: processedPosts.length,\n  avgEngagementRate: processedPosts.reduce((sum, post) => sum + post.engagementRate, 0) / processedPosts.length,\n  avgViralScore: processedPosts.reduce((sum, post) => sum + post.viralScore, 0) / processedPosts.length,\n  \n  topHashtags: Object.values(hashtagMetrics)\n    .sort((a, b) => b.avgViralScore - a.avgViralScore)\n    .slice(0, 3)\n    .map(h => ({\n      hashtag: h.hashtag,\n      avgViralScore: h.avgViralScore,\n      postCount: h.postCount\n    })),\n    \n  topCreators: Object.values(creatorMetrics)\n    .sort((a, b) => b.avgViralScore - a.avgViralScore)\n    .slice(0, 2)\n    .map(c => ({\n      username: c.username,\n      followers: c.followers,\n      avgViralScore: c.avgViralScore,\n      verified: c.verified\n    })),\n  \n  postingTimeDistribution: processedPosts.reduce((acc, post) => {\n    const hour = new Date(post.createTime).getHours();\n    acc[hour] = (acc[hour] || 0) + 1;\n    return acc;\n  }, {}),\n  \n  bestPostingHour: Object.entries(processedPosts.reduce((acc, post) => {\n    const hour = new Date(post.createTime).getHours();\n    acc[hour] = (acc[hour] || 0) + 1;\n    return acc;\n  }, {})).reduce((best, [hour, count]) => \n    count > best.count ? {hour: parseInt(hour), count} : best, \n    {hour: 0, count: 0}\n  ).hour,\n  \n  peakPostingCount: Object.entries(processedPosts.reduce((acc, post) => {\n    const hour = new Date(post.createTime).getHours();\n    acc[hour] = (acc[hour] || 0) + 1;\n    return acc;\n  }, {})).reduce((best, [hour, count]) => \n    count > best.count ? {hour: parseInt(hour), count} : best, \n    {hour: 0, count: 0}\n  ).count\n};\n\nreturn [\n  {\n    json: {\n      processed_posts: processedPosts,\n      hashtag_metrics: Object.values(hashtagMetrics),\n      creator_metrics: Object.values(creatorMetrics),\n      daily_summary: dailySummary\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, -200],
+      "id": "2d2ee680-b24c-48a6-b77d-e94ca6bb2347",
+      "name": "Clean Data"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_EMAIL_ADDRESS",
+        "subject": "={{ $json.subject }}",
+        "message": "=<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"utf-8\">\n    <style>\n        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }\n        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }\n        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }\n        .header h1 { margin: 0; font-size: 28px; font-weight: 300; }\n        .header p { margin: 10px 0 0 0; opacity: 0.9; font-size: 16px; }\n        .content { padding: 30px; }\n        .section { margin-bottom: 40px; }\n        .section h2 { color: #333; font-size: 22px; margin-bottom: 20px; border-bottom: 2px solid #667eea; padding-bottom: 10px; }\n        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }\n        .metric-card { background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; border-left: 4px solid #667eea; margin-bottom: 5px; }\n        .metric-value { font-size: 32px; font-weight: bold; color: #667eea; margin-bottom: 5px; }\n        .metric-label { color: #666; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }\n        .table { width: 100%; border-collapse: collapse; margin-top: 15px; }\n        .table th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; color: #495057; font-weight: 600; }\n        .table td { padding: 12px; border-bottom: 1px solid #dee2e6; }\n        .table tr:hover { background: #f8f9fa; }\n        .viral-score { background: linear-gradient(45deg, #ff6b6b, #ee5a24); color: white; padding: 4px 8px; border-radius: 15px; font-size: 12px; font-weight: bold; }\n        .engagement-rate { background: linear-gradient(45deg, #2ecc71, #27ae60); color: white; padding: 4px 8px; border-radius: 15px; font-size: 12px; font-weight: bold; }\n        .verified { color: #1da1f2; font-weight: bold; }\n        .post-link { color: #667eea; text-decoration: none; font-weight: 500; }\n        .post-link:hover { text-decoration: underline; }\n        .insight-box { background: linear-gradient(135deg, #ffeaa7, #fdcb6e); padding: 20px; border-radius: 8px; margin: 20px 0; }\n        .insight-box h3 { margin-top: 0; color: #2d3436; }\n        .footer { background: #2d3436; color: white; padding: 20px; text-align: center; font-size: 14px; }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <div class=\"header\">\n            <h1>📊 TikTok Trend Analysis Report</h1>\n            <p>Daily insights from {{ $json.totalPosts }} posts • {{ $json.reportDate }}</p>\n        </div>\n        \n        <div class=\"content\">\n            <div class=\"section\">\n                <h2>📈 Key Metrics</h2>\n                <div class=\"metrics-grid\">\n                    <div class=\"metric-card\">\n                        <div class=\"metric-value\">{{ $json.totalViews >= 1000000 ? ($json.totalViews / 1000000).toFixed(1) + 'M' : $json.totalViews >= 1000 ? ($json.totalViews / 1000).toFixed(1) + 'K' : $json.totalViews }}</div>\n                        <div class=\"metric-label\">Total Views</div>\n                    </div>\n                    <div class=\"metric-card\">\n                        <div class=\"metric-value\">{{ $json.avgEngagement.toFixed(2) }}%</div>\n                        <div class=\"metric-label\">Avg Engagement</div>\n                    </div>\n                    <div class=\"metric-card\">\n                        <div class=\"metric-value\">{{ $json.avgViralScore.toFixed(1) }}</div>\n                        <div class=\"metric-label\">Avg Viral Score</div>\n                    </div>\n                    <div class=\"metric-card\">\n                        <div class=\"metric-value\">{{ $json.peakHour }}:00</div>\n                        <div class=\"metric-label\">Peak Posting Hour</div>\n                    </div>\n                </div>\n            </div>\n\n            <!-- Top Performing Hashtags -->\n            <div class=\"section\">\n                <h2>🏆 Top Performing Hashtags</h2>\n                <table class=\"table\">\n                    <thead>\n                        <tr>\n                            <th>Hashtag</th>\n                            <th>Posts</th>\n                            <th>Viral Score</th>\n                            <th>Engagement Rate</th>\n                        </tr>\n                    </thead>\n                    <tbody>\n                        {{ $json.topHashtags.map(hashtag => `\n                        <tr>\n                            <td><strong>#${hashtag.hashtag}</strong></td>\n                            <td>${hashtag.postCount}</td>\n                            <td><span class=\"viral-score\">${hashtag.avgViralScore.toFixed(1)}</span></td>\n                            <td><span class=\"engagement-rate\">${hashtag.avgEngagementRate.toFixed(2)}%</span></td>\n                        </tr>\n                        `).join('') }}\n                    </tbody>\n                </table>\n            </div>\n\n            <div class=\"section\">\n                <h2>👑 Top Performing Creators</h2>\n                <table class=\"table\">\n                    <thead>\n                        <tr>\n                            <th>Creator</th>\n                            <th>Followers</th>\n                            <th>Posts Analyzed</th>\n                            <th>Avg Viral Score</th>\n                            <th>Best Post</th>\n                        </tr>\n                    </thead>\n                    <tbody>\n                        {{ $json.topCreators.map(creator => `\n                        <tr>\n                            <td>\n                                <strong>@${creator.username}</strong>\n                                ${creator.verified ? '<span class=\"verified\">✓</span>' : ''}\n                            </td>\n                            <td>${creator.followers >= 1000000 ? (creator.followers / 1000000).toFixed(1) + 'M' : creator.followers >= 1000 ? (creator.followers / 1000).toFixed(1) + 'K' : creator.followers}</td>\n                            <td>${creator.postsInDataset}</td>\n                            <td><span class=\"viral-score\">${creator.avgViralScore.toFixed(1)}</span></td>\n                            <td><a href=\"${creator.bestPost.url}\" class=\"post-link\" target=\"_blank\">View</a></td>\n                        </tr>\n                        `).join('') }}\n                    </tbody>\n                </table>\n            </div>\n    \n            <div class=\"section\">\n                <h2>🔥 Most Viral Posts</h2>\n                <table class=\"table\">\n                    <thead>\n                        <tr>\n                            <th>Creator</th>\n                            <th>Content Preview</th>\n                            <th>Views</th>\n                            <th>Viral Score</th>\n                            <th>Link</th>\n                        </tr>\n                    </thead>\n                    <tbody>\n                        {{ $json.topPosts.map(post => `\n                        <tr>\n                            <td><strong>@${post.creatorUsername}</strong></td>\n                            <td>${post.text.substring(0, 80)}${post.text.length > 80 ? '...' : ''}</td>\n                            <td>${post.playCount >= 1000000 ? (post.playCount / 1000000).toFixed(1) + 'M' : post.playCount >= 1000 ? (post.playCount / 1000).toFixed(1) + 'K' : post.playCount}</td>\n                            <td><span class=\"viral-score\">${post.viralScore.toFixed(1)}</span></td>\n                            <td><a href=\"${post.url}\" class=\"post-link\" target=\"_blank\">View Post</a></td>\n                        </tr>\n                        `).join('') }}\n                    </tbody>\n                </table>\n            </div>\n\n            <!-- Key Insights -->\n            <div class=\"section\">\n                <div class=\"insight-box\">\n                    <h3>💡 Key Insights</h3>\n                    <ul>\n                        <li><strong>Peak Activity:</strong> Most posts are published at {{ $json.peakHour }}:00 ({{ $json.peakCount }} posts)</li>\n                        <li><strong>Top Hashtag:</strong> #{{ $json.topHashtags[0].hashtag || 'N/A' }} leads with {{ $json.topHashtags[0].avgViralScore.toFixed(1) || 0 }} viral score</li>\n                        <li><strong>Best Creator:</strong> @{{ $json.topCreators[0].username || 'N/A' }} dominates with {{ $json.topCreators[0].followers >= 1000000 ? ($json.topCreators[0].followers / 1000000).toFixed(1) + 'M' : $json.topCreators[0].followers >= 1000 ? ($json.topCreators[0].followers / 1000).toFixed(1) + 'K' : $json.topCreators[0].followers || 0 }} followers</li>\n                        <li><strong>Viral Content:</strong> Top post reached {{ $json.topPosts[0].playCount >= 1000000 ? ($json.topPosts[0].playCount / 1000000).toFixed(1) + 'M' : $json.topPosts[0].playCount >= 1000 ? ($json.topPosts[0].playCount / 1000).toFixed(1) + 'K' : $json.topPosts[0].playCount || 0 }} views</li>\n                        <li><strong>Engagement:</strong> Average engagement rate is {{ $json.avgEngagement.toFixed(2) }}%</li>\n                    </ul>\n                </div>\n            </div>\n        </div>\n        \n        <div class=\"footer\">\n            <p>🤖 Generated by TikTok Trend Analysis Workflow • Data scraped at {{ $json.reportTime }}</p>\n        </div>\n    </div>\n</body>\n</html>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1600, -200],
+      "id": "ee4a9d6b-dc33-4376-9a13-cc5af561cae2",
+      "name": "Gmail",
+      "webhookId": "2268d433-7b91-4206-95e1-ce99a70f2cae",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIALS",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $(\"Split Out - Posts\").all().map(item => item.json).flat();\nconst hashtags = $('Split Out - Hashtag Metrics').all().map(item => item.json).flat();\nconst creators = $('Split Out - Creator Metrics').all().map(item => item.json).flat();\nconst summary = $(\"Clean Data\").first().json.daily_summary;\n\nfunction formatNumber(num) {\n  if (num >= 1000000) {\n    return (num / 1000000).toFixed(1) + 'M';\n  } else if (num >= 1000) {\n    return (num / 1000).toFixed(1) + 'K';\n  }\n  return `${num}`;\n}\n\nfunction formatPercentage(num) {\n  return `${num.toFixed(2)}%`;\n}\n\nfunction formatViralScore(score) {\n  return score.toFixed(1);\n}\n\nconst topHashtags = hashtags\n  .sort((a, b) => b.avgViralScore - a.avgViralScore)\n  .slice(0, 3);\n\nconst topCreators = creators\n  .sort((a, b) => b.avgViralScore - a.avgViralScore)\n  .slice(0, 2);\n\nconst topPosts = posts\n  .sort((a, b) => b.viralScore - a.viralScore)\n  .slice(0, 3);\n\nconst totalViews = posts.reduce((sum, post) => sum + (post.playCount || 0), 0);\n\nconst peakHour = summary.bestPostingHour || 0;\nconst peakCount = summary.peakPostingCount || 0;\n\nreturn [{\n  json: {\n    totalPosts: posts.length,\n    totalViews: totalViews,\n    avgEngagement: summary.avgEngagementRate || 0,\n    avgViralScore: summary.avgViralScore || 0,\n    peakHour: peakHour,\n    peakCount: peakCount,\n    topHashtags: topHashtags,\n    topCreators: topCreators,\n    topPosts: topPosts,\n    formatNumber: formatNumber,\n    formatPercentage: formatPercentage,\n    formatViralScore: formatViralScore,\n    reportDate: $now.toFormat(\"dd/LL/yyyy\"),\n    reportTime: $now.toFormat(\"hh:mm\"),\n    subject: `📊 TikTok Trends Report - ${$now.toFormat(\"dd/LL/yyyy\")} - ${posts.length} Posts Analyzed`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, -200],
+      "id": "7c6d7c1e-a4af-49d3-90ca-ea936f78de56",
+      "name": "Prepare Email Data"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "maxItems",
+              "value": "100"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "hashtags",
+              "value": "={{ $json.hashtags }}"
+            },
+            {
+              "name": "resultsPerPage",
+              "value": "={{ $json['results per page'] }}"
+            },
+            {
+              "name": "proxyCountryCode",
+              "value": "={{ $json['country code'] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [280, -200],
+      "id": "433f5612-92da-4c4b-a5cc-dca7a6830a7e",
+      "name": "Scrape TikTok",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_APIFY_CREDENTIALS",
+          "name": "Apify Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "processed_posts",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [720, -500],
+      "id": "71013946-7b54-4d8d-894a-d1cbb31f2b6c",
+      "name": "Split Out - Posts"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "hashtag_metrics",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [720, -300],
+      "id": "cad8fa87-c1a3-4e33-9e53-2fcfcdc0e2be",
+      "name": "Split Out - Hashtag Metrics"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "creator_metrics",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [720, -100],
+      "id": "cd691444-f076-45c3-870d-dcc629784971",
+      "name": "Split Out - Creator Metrics"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "TikTok Hashtags",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 743468066,
+          "mode": "list",
+          "cachedResultName": "Daily Summary",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.daily_summary.date }}",
+            "totalPosts": "={{ $json.daily_summary.totalPosts }}",
+            "avgEngagementRate": "={{ $json.daily_summary.avgEngagementRate }}",
+            "avgViralScore": "={{ $json.daily_summary.avgViralScore }}",
+            "topHashtag1": "={{ $json.daily_summary.topHashtags[0].hashtag }}",
+            "topHashtag1Score": "={{ $json.daily_summary.topHashtags[0].avgViralScore }}",
+            "topHashtag2": "={{ $json.daily_summary.topHashtags[1].hashtag }}",
+            "topHashtag2Score": "={{ $json.daily_summary.topHashtags[1].avgViralScore }}",
+            "topCreator1": "={{ $json.daily_summary.topCreators[0].username }}",
+            "topCreator1Score": "={{ $json.daily_summary.topCreators[0].avgViralScore }}",
+            "topCreator2": "={{ $json.daily_summary.topCreators[1].username }}",
+            "topCreator2Score": "={{ $json.daily_summary.topCreators[1].avgViralScore }}",
+            "bestPostingHour": "={{ Object.entries($json.daily_summary.postingTimeDistribution).reduce((best, [hour, count]) => count > best.count ? {hour: parseInt(hour), count} : best, {hour: 0, count: 0}).hour }}",
+            "peakPostingCount": "={{ Object.entries($json.daily_summary.postingTimeDistribution).reduce((best, [hour, count]) => count > best.count ? {hour: parseInt(hour), count} : best, {hour: 0, count: 0}).count }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalPosts",
+              "displayName": "totalPosts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "avgEngagementRate",
+              "displayName": "avgEngagementRate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "avgViralScore",
+              "displayName": "avgViralScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topHashtag1",
+              "displayName": "topHashtag1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topHashtag1Score",
+              "displayName": "topHashtag1Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topHashtag2",
+              "displayName": "topHashtag2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topHashtag2Score",
+              "displayName": "topHashtag2Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topCreator1",
+              "displayName": "topCreator1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topCreator1Score",
+              "displayName": "topCreator1Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topCreator2",
+              "displayName": "topCreator2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topCreator2Score",
+              "displayName": "topCreator2Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bestPostingHour",
+              "displayName": "bestPostingHour",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "peakPostingCount",
+              "displayName": "peakPostingCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [940, 100],
+      "id": "a60a7a97-c488-4a74-9171-19d9447c3a91",
+      "name": "Google Sheets - Daily Summary",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIALS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "TikTok Hashtags",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 602047909,
+          "mode": "list",
+          "cachedResultName": "Creator Performance",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "username": "={{ $json.username }}",
+            "followers": "={{ $json.followers }}",
+            "verified": "={{ $json.verified }}",
+            "postsInDataset": "={{ $json.postsInDataset }}",
+            "avgViralScore": "={{ $json.avgViralScore }}",
+            "engagementRate": "={{ $json.engagementRate }}",
+            "bestPostUrl": "={{ $json.bestPost.url }}",
+            "bestPostViralScore": "={{ $json.bestPost.viralScore }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "username",
+              "displayName": "username",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nickname",
+              "displayName": "nickname",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "followers",
+              "displayName": "followers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "verified",
+              "displayName": "verified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "postsInDataset",
+              "displayName": "postsInDataset",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "avgViralScore",
+              "displayName": "avgViralScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "engagementRate",
+              "displayName": "engagementRate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bestPostUrl",
+              "displayName": "bestPostUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bestPostViralScore",
+              "displayName": "bestPostViralScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [940, -100],
+      "id": "a74eca53-944e-42b4-9f9a-2a643102df86",
+      "name": "Google Sheets - Creator Metrics",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIALS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "TikTok Hashtags",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 596444024,
+          "mode": "list",
+          "cachedResultName": "Hashtag Performance",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "hashtag": "={{ $json.hashtag }}",
+            "postCount": "={{ $json.postCount }}",
+            "avgEngagementRate": "={{ $json.avgEngagementRate }}",
+            "avgViralScore": "={{ $json.avgViralScore }}",
+            "topPostUrl": "={{ $json.topPost.url }}",
+            "topPostViralScore": "={{ $json.topPost.viralScore }}",
+            "topPostCreator": "={{ $json.topPost.creator }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "hashtag",
+              "displayName": "hashtag",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "postCount",
+              "displayName": "postCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "avgEngagementRate",
+              "displayName": "avgEngagementRate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "avgViralScore",
+              "displayName": "avgViralScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topPostUrl",
+              "displayName": "topPostUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topPostViralScore",
+              "displayName": "topPostViralScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "topPostCreator",
+              "displayName": "topPostCreator",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [940, -300],
+      "id": "bb416dab-0c1a-4f0c-a0db-9bc2ca61bc15",
+      "name": "Google Sheets - Hashtag Metrics",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIALS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "TikTok Hashtags",
+          "cachedResultUrl": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1692302897,
+          "mode": "list",
+          "cachedResultName": "Posts",
+          "cachedResultUrl": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "text": "={{ $json.text }}",
+            "createTime": "={{ $json.createTime }}",
+            "postDate": "={{ $json.postDate }}",
+            "url": "={{ $json.url }}",
+            "playCount": "={{ $json.playCount }}",
+            "diggCount": "={{ $json.diggCount }}",
+            "shareCount": "={{ $json.shareCount }}",
+            "commentCount": "={{ $json.commentCount }}",
+            "engagementRate": "={{ $json.engagementRate }}",
+            "viralScore": "={{ $json.viralScore }}",
+            "duration": "={{ $json.duration }}",
+            "hashtags": "={{ $json.hashtags.join(\", \") }}",
+            "creatorUsername": "={{ $json.creatorUsername }}",
+            "creatorFollowers": "={{ $json.creatorFollowers }}",
+            "creatorVerified": "={{ $json.creatorVerified }}",
+            "inputHashtag": "={{ $json.inputHashtag }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "createTime",
+              "displayName": "createTime",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "postDate",
+              "displayName": "postDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "playCount",
+              "displayName": "playCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "diggCount",
+              "displayName": "diggCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "shareCount",
+              "displayName": "shareCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "commentCount",
+              "displayName": "commentCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "engagementRate",
+              "displayName": "engagementRate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "viralScore",
+              "displayName": "viralScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration",
+              "displayName": "duration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hashtags",
+              "displayName": "hashtags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hashtagCount",
+              "displayName": "hashtagCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "captionLength",
+              "displayName": "captionLength",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "creatorUsername",
+              "displayName": "creatorUsername",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "creatorFollowers",
+              "displayName": "creatorFollowers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "creatorVerified",
+              "displayName": "creatorVerified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "inputHashtag",
+              "displayName": "inputHashtag",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "scrapedAt",
+              "displayName": "scrapedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [940, -500],
+      "id": "9a4b476f-2e52-45b3-ace3-f5a627c4c67b",
+      "name": "Google Sheets - Posts",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIALS",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [1160, -221],
+      "id": "bce203cb-b859-4c0a-962c-2f952c5c097e",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Scraper Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scraper Settings": {
+      "main": [
+        [
+          {
+            "node": "Scrape TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Data": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Daily Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out - Posts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out - Hashtag Metrics",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out - Creator Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape TikTok": {
+      "main": [
+        [
+          {
+            "node": "Clean Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out - Posts": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out - Hashtag Metrics": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Hashtag Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out - Creator Metrics": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Creator Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Creator Metrics": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Hashtag Metrics": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Posts": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c3c8e427-235a-4203-b6db-804f10d4b644",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5f56bba93caf5c72ce2e82ae08325840d9f874fcb312acae9139f73a7d1a412c"
+  },
+  "id": "AQEpN9w8vCGWH7WW",
+  "tags": []
+}

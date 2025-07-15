@@ -13,6 +13,7 @@
 | [🎧 Podcast Content Automation](./n8n-workflows/podcast-content-automation/)          | n8n      | AI-powered content management for podcast directories           |
 | [🎨 Print-on-Demand System](./make-workflows/print-on-demand-automation/)             | Make.com | Automated design analysis and product publishing                |
 | [📰 Crypto News AI Content Generator](./n8n-workflows/crypto-news-content-generator/) | n8n      | Automated crypto news monitoring with AI content transformation |
+| [📈 TikTok Hashtag Monitoring](./n8n-workflows/tiktok-hashtag-monitoring/)            | n8n      | TikTok scraper for monitoring hashtag performance               |
 
 ## 🏢 Background
 
@@ -73,6 +74,7 @@ automation-portfolio/
 ├── 📂 n8n-workflows/
 │   ├── podcast-content-automation/
 │   └── crypto-news-content-generator/
+│   └── tiktok-hashtag-monitoring/
 ├── 📂 make-workflows/
 │   └── print-on-demand-automation/
 ```
